@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>诗音解密 · 项目全景里程碑</title>
+<style>
+/* =========================================================================
+   《古风卷轴 · 全景里程碑》—— 纯动态视效展示页
+   设计原则：开卷有光，静水流深
+   · 进场 1.5s 完成展卷，此后所有文字与模块绝对定格，不消失、不位移
+   · 定格后仅保留四组循环光影：中线流金 / 金色呼吸 / 朱砂心跳 / 水墨微光
+   ========================================================================= */
+:root{
+  /* —— 色彩体系 —— */
+  --paper:      #FDFBF7;   /* 宣纸米白：卷轴纸面 */
+  --paper-edge: #EFE6D2;   /* 纸面做旧边缘 */
+  --ink:        #1F4E4A;   /* 墨青：主字色 */
+  --ink-soft:   #4A6E69;   /* 次级墨青 */
+  --ink-faint:  rgba(31,78,74,.42);
+  --cinnabar:   #B03A2E;   /* 朱砂红：本课焦点 / 翻车 */
+  --gold:       #D4A017;   /* 暗金：未来的算法 */
+  --gold-soft:  rgba(212,160,23,.22);
+  --wood-a:     #6E4B2B;   /* 画轴木纹亮部 */
+  --wood-b:     #3E2814;   /* 画轴木纹暗部 */
+  --metal-a:    #E8CE8E;   /* 金属包边高光 */
+  --metal-b:    #8C6A25;   /* 金属包边暗部 */
+  --wall-a:     #26221C;   /* 卷轴外背景（暗室） */
+  --wall-b:     #14110E;
+
+  /* —— 字体 —— */
+  --f-xing: "STXingkai","华文行楷","华文楷体","HanziPen SC","STKaiti","KaiTi","楷体",serif;
+  --f-kai:  "STKaiti","KaiTi","楷体_GB2312","Kaiti SC",serif;
+  --f-body: "Microsoft YaHei","微软雅黑","PingFang SC","Hiragino Sans GB","黑体",sans-serif;
+  --f-song: "STZhongsong","STSong","SimSun","宋体","Songti SC",serif;
+
+  /* —— 画轴尺寸 —— */
+  --rod-h: clamp(16px, 2.3vh, 30px);
+  --rod-x: -2.1%;
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden}
+body{
+  font-family:var(--f-body);
+  color:var(--ink);
+  background:
+    radial-gradient(78% 62% at 50% 44%, rgba(212,160,23,.10), transparent 68%),
+    radial-gradient(120% 90% at 50% 50%, var(--wall-a), var(--wall-b) 100%);
+  display:flex;align-items:center;justify-content:center;
+  user-select:none;-webkit-user-select:none;
+  -webkit-font-smoothing:antialiased;
+}
+
+/* ============================ 舞台与卷轴外框 ============================ */
+.stage{  /* 巨大的横向卷轴：宽高比约 2:1，比屏幕更扁，才像一幅横卷 */
+  position:relative;
+  width:min(94vw, 1720px);
+  height:min(80vh, 862px);
+}
+.scroll{position:absolute;inset:0}
+
+/* 画轴（上下各一根）：深棕木纹 + 金属包边 */
+.rod{
+  position:absolute;left:var(--rod-x);right:var(--rod-x);
+  height:var(--rod-h);
+  border-radius:calc(var(--rod-h) / 2);
+  background:
+    repeating-linear-gradient(90deg, rgba(0,0,0,.16) 0 1px, transparent 1px 7px),
+    repeating-linear-gradient(90deg, rgba(255,255,255,.05) 0 1px, transparent 1px 11px),
+    linear-gradient(180deg, var(--wood-a) 0%, #4E331B 38%, var(--wood-b) 100%);
+  box-shadow:
+    0 2px 0 rgba(255,255,255,.10) inset,
+    0 -3px 8px rgba(0,0,0,.42) inset,
+    0 10px 26px rgba(0,0,0,.55);
+  z-index:6;
+}
+.rod::before,.rod::after{  /* 两端金属轴头 */
+  content:"";position:absolute;top:50%;transform:translateY(-50%);
+  width:2.6%;height:calc(var(--rod-h) * 1.42);
+  border-radius:calc(var(--rod-h) * .5);
+  background:linear-gradient(180deg, var(--metal-a) 0%, #C6A04A 42%, var(--metal-b) 100%);
+  box-shadow:0 1px 0 rgba(255,255,255,.5) inset, 0 -2px 5px rgba(0,0,0,.5) inset;
+}
+.rod::before{left:-1.3%}
+.rod::after{right:-1.3%}
+/* 初始：两根轴并拢在正中；展卷后分别贴上、下纸边 */
+.rod-t{top:50%;transform:translateY(-50%)}
+.rod-b{bottom:50%;transform:translateY(50%)}
+.rod-t,.rod-b{transition:top 1000ms cubic-bezier(.17,.84,.28,1), bottom 1000ms cubic-bezier(.17,.84,.28,1), transform 1000ms cubic-bezier(.17,.84,.28,1)}
+.opened .rod-t{top:0;transform:translateY(0)}
+.opened .rod-b{bottom:0;transform:translateY(0)}
+
+/* 卷轴纸面：初始被完全裁掉（中间一条缝），展开时上下拉开 */
+.paper{
+  position:absolute;left:0;right:0;top:0;bottom:0;
+  clip-path:inset(50% 0 50% 0);
+  transition:clip-path 1000ms cubic-bezier(.17,.84,.28,1);
+  background:
+    radial-gradient(120% 80% at 50% 0%,   rgba(212,160,23,.07), transparent 60%),
+    radial-gradient(100% 100% at 50% 120%,rgba(31,78,74,.05),   transparent 58%),
+    linear-gradient(180deg, var(--paper) 0%, #FBF6EA 55%, var(--paper-edge) 100%);
+  box-shadow:0 22px 60px rgba(0,0,0,.6), 0 0 0 1px rgba(120,95,55,.18);
+  overflow:hidden;
+}
+.opened .paper{clip-path:inset(0 0 0 0)}
+/* 纸张左右做旧：边缘压深 + 细颗粒 */
+.paper::before{
+  content:"";position:absolute;inset:0;pointer-events:none;z-index:4;
+  background:
+    linear-gradient(90deg, rgba(139,110,66,.20) 0, transparent 3.2%),
+    linear-gradient(270deg,rgba(139,110,66,.20) 0, transparent 3.2%),
+    repeating-linear-gradient(91deg, rgba(139,110,66,.035) 0 1px, transparent 1px 5px),
+    repeating-linear-gradient(2deg,  rgba(139,110,66,.028) 0 1px, transparent 1px 6px);
+  mix-blend-mode:multiply;
+}
+
+/* 纸内内容容器：展卷后绝对定格（不做任何 transform） */
+.sheet{
+  position:absolute;inset:0;z-index:2;
+  display:flex;flex-direction:column;
+  padding:clamp(14px,2.4vh,30px) clamp(26px,3.4vw,64px) clamp(12px,2vh,26px);
+}
+
+/* ============================ 顶部标题 ============================ */
+.head{flex:0 0 auto;text-align:center}
+.title{
+  font-family:var(--f-xing);
+  font-size:clamp(26px,3.7vw,60px);
+  letter-spacing:.1em;font-weight:400;
+  color:var(--ink);
+  text-shadow:0 1px 0 rgba(255,255,255,.7), 0 2px 12px rgba(31,78,74,.14);
+}
+.title .q{color:var(--cinnabar);margin:0 .06em}
+.rule{ /* 标题下的墨线 + 朱砂点 */
+  width:min(620px,64%);height:1px;margin:clamp(5px,.9vh,12px) auto 0;
+  background:linear-gradient(90deg,transparent,rgba(31,78,74,.5) 20%,rgba(31,78,74,.5) 80%,transparent);
+  position:relative;
+}
+.rule::after{
+  content:"";position:absolute;left:50%;top:-3px;transform:translateX(-50%);
+  width:7px;height:7px;border-radius:50%;background:var(--cinnabar);
+  box-shadow:0 0 0 3px rgba(176,58,46,.16);
+}
+
+/* ============================ 时间轴（中线流金） ============================ */
+.axis{
+  position:relative;flex:0 0 auto;
+  margin:clamp(8px,1.5vh,20px) 0 clamp(6px,1.1vh,15px);
+  height:14px;
+  display:grid;grid-template-columns:1fr 1.3fr 1fr;gap:clamp(10px,1.2vw,22px);
+  align-items:center;
+}
+.axis .ln{
+  position:absolute;left:0;right:0;top:50%;height:1.6px;transform:translateY(-50%);
+  background:linear-gradient(90deg,transparent,var(--gold-soft) 6%,rgba(212,160,23,.55) 22%,rgba(212,160,23,.55) 78%,var(--gold-soft) 94%,transparent);
+}
+.axis .beam{ /* 流光：长约 10cm 的一段，像水滴从左向右滑，8s 一轮 */
+  position:absolute;top:50%;left:0;transform:translateY(-50%);
+  width:11%;height:7px;border-radius:4px;
+  background:linear-gradient(90deg,transparent,rgba(255,226,158,.95) 42%,rgba(212,160,23,.85) 58%,transparent);
+  filter:blur(1.2px);
+  opacity:0;
+}
+.live .axis .beam{animation:flow 8s linear infinite;opacity:1}
+@keyframes flow{
+  0%{left:-12%;opacity:0}
+  6%{opacity:1}
+  94%{opacity:1}
+  100%{left:102%;opacity:0}
+}
+.axis .nd{justify-self:center;width:9px;height:9px;transform:rotate(45deg);
+  background:var(--gold);box-shadow:0 0 0 3px rgba(212,160,23,.16);z-index:2}
+.axis .nd.on{background:var(--cinnabar);box-shadow:0 0 0 3px rgba(176,58,46,.18)}
+
+/* ============================ 主体三段式 ============================ */
+.tri{
+  flex:1 1 auto;min-height:0;
+  display:grid;grid-template-columns:1fr 1.3fr 1fr;gap:clamp(10px,1.2vw,22px);
+  align-items:stretch;
+}
+.col{
+  position:relative;
+  overflow:hidden;
+  border:1px solid rgba(31,78,74,.30);
+  border-radius:6px;
+  background:linear-gradient(180deg, rgba(255,255,255,.72), rgba(239,230,210,.42));
+  padding:clamp(9px,1.5vh,18px) clamp(10px,1.2vw,20px) clamp(10px,1.6vh,20px);
+  display:flex;flex-direction:column;
+  box-shadow:0 2px 10px rgba(31,78,74,.07) inset;
+}
+/* 中区：C 位，暗金边框 + 微弱金光底 */
+.col-c{
+  border:2px solid var(--gold);
+  background:
+    radial-gradient(90% 70% at 50% 8%, rgba(212,160,23,.16), transparent 62%),
+    linear-gradient(180deg, rgba(255,253,246,.88), rgba(243,233,210,.60));
+  box-shadow:0 0 0 1px rgba(212,160,23,.30) inset;
+}
+.live .col-c{animation:breatheGold 3s ease-in-out infinite}
+@keyframes breatheGold{
+  0%,100%{box-shadow:0 0 0 1px rgba(212,160,23,.30) inset, 0 0 10px 1px rgba(212,160,23,.16), 0 0 26px 4px rgba(212,160,23,.06)}
+  50%    {box-shadow:0 0 0 1px rgba(212,160,23,.55) inset, 0 0 20px 4px rgba(212,160,23,.40), 0 0 52px 12px rgba(212,160,23,.16)}
+}
+
+/* 区卡右下角：淡墨阶段编号水印（壹 / 贰 / 叁），填充留白 */
+.col::after{
+  content:attr(data-mk);
+  position:absolute;right:3%;bottom:-2%;z-index:0;pointer-events:none;
+  font-family:var(--f-kai);font-weight:bold;
+  font-size:clamp(52px,7.4vw,132px);line-height:1;
+  color:rgba(31,78,74,.055);
+  letter-spacing:0;
+}
+.col-c::after{color:rgba(212,160,23,.13)}
+.c-head,.c-sub,.item,.bug,.puzzle{position:relative;z-index:1}
+
+/* 区头 */
+.c-head{display:flex;align-items:center;gap:clamp(6px,.7vw,12px);flex:0 0 auto}
+.c-idx{
+  font-family:var(--f-kai);font-weight:bold;
+  font-size:clamp(11px,1.05vw,15px);letter-spacing:.06em;
+  color:#fff;background:var(--ink);
+  padding:2px 9px;border-radius:3px;white-space:nowrap;
+}
+.col-c .c-idx{background:var(--gold)}
+.col-r .c-idx{background:var(--ink-soft)}
+.c-name{
+  font-family:var(--f-kai);font-weight:bold;
+  font-size:clamp(14px,1.5vw,23px);letter-spacing:.08em;color:var(--ink);
+}
+.c-sub{
+  flex:0 0 auto;margin:clamp(3px,.5vh,7px) 0 clamp(6px,1vh,13px);
+  font-size:clamp(11px,.92vw,13.5px);letter-spacing:.16em;color:var(--ink-soft);
+  padding-bottom:clamp(5px,.8vh,10px);
+  border-bottom:1px dashed rgba(31,78,74,.26);
+}
+.ico{flex:0 0 auto;width:clamp(20px,2vw,30px);height:clamp(20px,2vw,30px);display:block}
+
+/* 条目：任务 / 行动 */
+.item{flex:0 0 auto;margin-top:clamp(5px,.9vh,12px)}
+.item .lb{
+  display:inline-block;font-family:var(--f-kai);font-weight:bold;
+  font-size:clamp(10px,.88vw,13px);letter-spacing:.12em;
+  color:var(--ink-soft);border:1px solid rgba(31,78,74,.32);
+  border-radius:2px;padding:1px 7px;margin-bottom:clamp(3px,.5vh,7px);
+}
+.item .tx{
+  font-size:clamp(12.5px,1.12vw,17.5px);line-height:1.55;letter-spacing:.02em;color:var(--ink);
+}
+.item .tx b{font-weight:bold}
+
+/* 左区：破损齿轮 + 朱砂 Bug 条 */
+.bug{
+  flex:0 0 auto;margin-top:auto;
+  border:1px solid rgba(176,58,46,.45);
+  background:linear-gradient(180deg, rgba(176,58,46,.10), rgba(176,58,46,.05));
+  border-radius:5px;padding:clamp(6px,1vh,11px) clamp(8px,.9vw,13px);
+  font-family:var(--f-kai);font-weight:bold;
+  font-size:clamp(12.5px,1.12vw,17px);letter-spacing:.04em;line-height:1.5;
+  color:var(--cinnabar);
+}
+.bug .mk{display:inline-block;margin-right:.35em;font-size:1.08em}
+.bug .em{text-decoration:underline;text-decoration-style:wavy;text-underline-offset:3px}
+
+/* 中区：两张拼图 */
+.puzzle{
+  flex:1 1 auto;min-height:0;
+  display:grid;grid-template-columns:1fr 1fr;gap:clamp(8px,.9vw,16px);
+  position:relative;
+}
+.piece{
+  position:relative;
+  border-radius:5px;padding:clamp(7px,1.15vh,14px) clamp(8px,.95vw,15px);
+  display:flex;flex-direction:column;justify-content:center;
+}
+.p-now{ /* 本课 · 朱砂红框（心跳） */
+  border:2px solid var(--cinnabar);
+  background:linear-gradient(180deg, rgba(176,58,46,.09), rgba(176,58,46,.035));
+}
+.live .p-now{animation:beatRed 2s ease-in-out infinite}
+@keyframes beatRed{
+  0%   {box-shadow:0 0 0 0 rgba(176,58,46,.34), 0 0 8px 1px rgba(176,58,46,.16)}
+  22%  {box-shadow:0 0 0 5px rgba(176,58,46,.16), 0 0 20px 5px rgba(176,58,46,.42)}
+  46%  {box-shadow:0 0 0 1px rgba(176,58,46,.10), 0 0 10px 2px rgba(176,58,46,.18)}
+  62%  {box-shadow:0 0 0 4px rgba(176,58,46,.12), 0 0 16px 3px rgba(176,58,46,.28)}
+  100% {box-shadow:0 0 0 0 rgba(176,58,46,.34), 0 0 8px 1px rgba(176,58,46,.16)}
+}
+.p-next{ /* 下节 · 墨青框 */
+  border:2px solid var(--ink);
+  background:linear-gradient(180deg, rgba(31,78,74,.075), rgba(31,78,74,.03));
+}
+.p-tag{
+  align-self:flex-start;
+  font-family:var(--f-kai);font-weight:bold;
+  font-size:clamp(10.5px,.92vw,14px);letter-spacing:.1em;
+  color:#fff;padding:2px 8px;border-radius:3px;white-space:nowrap;
+}
+.p-now .p-tag{background:var(--cinnabar)}
+.p-next .p-tag{background:var(--ink)}
+.p-h{
+  margin:clamp(4px,.7vh,9px) 0 clamp(2px,.4vh,5px);
+  font-family:var(--f-kai);font-weight:bold;
+  font-size:clamp(13px,1.24vw,19px);letter-spacing:.05em;color:var(--ink);
+}
+.p-now .p-h{color:var(--cinnabar)}
+.piece .item{margin-top:clamp(4px,.7vh,9px)}
+.piece .item .tx{font-size:clamp(11.5px,1.02vw,15.5px);line-height:1.5}
+
+/* 拼图咬合扣件（中缝） */
+.joint{
+  position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+  width:clamp(20px,2vw,30px);height:clamp(28px,2.8vh,42px);
+  z-index:3;pointer-events:none;
+}
+
+/* 右区条目组：撑满剩余高度，与左区节奏一致 */
+.col-r .item:last-of-type{margin-bottom:0}
+
+/* ============================ 底部金句 ============================ */
+.foot{flex:0 0 auto;text-align:center;margin-top:clamp(8px,1.5vh,20px)}
+.foot .fl{
+  width:min(760px,78%);height:1px;margin:0 auto clamp(6px,1.1vh,14px);
+  background:linear-gradient(90deg,transparent,var(--gold-soft) 18%,rgba(212,160,23,.5) 50%,var(--gold-soft) 82%,transparent);
+}
+.slogan{
+  font-family:var(--f-kai);font-weight:bold;
+  font-size:clamp(16px,2.1vw,33px);letter-spacing:.06em;line-height:1.5;
+  color:var(--ink);
+}
+.slogan .hi{color:var(--cinnabar)}
+.slogan .sp{margin:0 .34em;color:var(--gold)}
+
+/* ============================ 特效4：水墨微光 ============================ */
+.blobs{position:absolute;inset:0;z-index:1;pointer-events:none;overflow:hidden}
+.blob{
+  position:absolute;border-radius:50%;
+  background:radial-gradient(circle at 42% 40%, rgba(212,160,23,.30), rgba(212,160,23,.10) 45%, transparent 72%);
+  filter:blur(26px);opacity:0;transition:opacity 1.6s ease;
+}
+.live .blob{opacity:1}
+.blob.b1{width:34%;height:56%;left:5%;top:14%}
+.blob.b2{width:28%;height:48%;right:6%;top:32%}
+.live .blob.b1{animation:driftA 21s ease-in-out infinite}
+.live .blob.b2{animation:driftB 27s ease-in-out infinite}
+@keyframes driftA{0%,100%{transform:translate(0,0)}50%{transform:translate(2.2%, -3.4%)}}
+@keyframes driftB{0%,100%{transform:translate(0,0)}50%{transform:translate(-2.6%, 3.0%)}}
+
+/* ============================ 展卷：金色光缝 ============================ */
+.slit{
+  position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+  width:0;height:3px;border-radius:3px;z-index:8;
+  background:linear-gradient(90deg,transparent,rgba(255,232,176,.95) 22%,#FFF6DC 50%,rgba(255,232,176,.95) 78%,transparent);
+  box-shadow:0 0 16px 4px rgba(212,160,23,.55), 0 0 42px 12px rgba(212,160,23,.28);
+  opacity:0;
+}
+.boot .slit{animation:slitOpen 1500ms ease-out forwards}
+@keyframes slitOpen{
+  0%  {width:0;opacity:0}
+  12% {width:26%;opacity:1}
+  26% {width:100%;opacity:1}
+  60% {opacity:.85}
+  100%{width:100%;opacity:0}
+}
+
+/* ============================ 内容淡入（仅展卷期间） ============================ */
+.fi{opacity:0;transition:opacity 520ms ease, transform 520ms cubic-bezier(.2,.7,.3,1)}
+.fi.up{transform:translateY(10px)}
+.opened .fi{opacity:1;transform:none}
+/* 逐层错落：标题 → 时间轴 → 左区 → 中区 → 右区 → 金句 */
+.opened .head .title{transition-delay:230ms}
+.opened .head .rule {transition-delay:300ms}
+.opened .axis       {transition-delay:400ms}
+.opened .col-l .c-head{transition-delay:470ms}
+.opened .col-l .c-sub {transition-delay:520ms}
+.opened .col-l .item  {transition-delay:570ms}
+.opened .col-l .bug   {transition-delay:640ms}
+.opened .col-c .c-head {transition-delay:590ms}
+.opened .col-c .c-sub  {transition-delay:640ms}
+.opened .col-c .puzzle {transition-delay:700ms}
+.opened .col-r .c-head{transition-delay:750ms}
+.opened .col-r .c-sub {transition-delay:800ms}
+.opened .col-r .item:nth-child(3){transition-delay:850ms}
+.opened .col-r .item:nth-child(4){transition-delay:900ms}
+.opened .foot .fl    {transition-delay:960ms}
+.opened .foot .slogan{transition-delay:1020ms}
+
+/* ============================ 右下角：声音开关 ============================ */
+.snd{
+  position:fixed;right:12px;bottom:10px;z-index:50;
+  width:34px;height:34px;border-radius:50%;
+  border:1px solid rgba(212,160,23,.42);
+  background:rgba(20,17,14,.55);color:var(--metal-a);
+  font-size:15px;line-height:1;cursor:pointer;
+  opacity:.16;transition:opacity .25s, background .25s;
+  display:flex;align-items:center;justify-content:center;
+}
+.snd:hover{opacity:1;background:rgba(20,17,14,.85)}
+.snd.on{opacity:.72}
+.hint{
+  position:fixed;left:14px;bottom:12px;z-index:50;
+  font-size:11px;letter-spacing:.1em;color:rgba(232,206,142,.26);
+  pointer-events:none;
+}
+
+/* ============================ 非 16:9 屏幕（4:3 投影/笔记本） ============================ */
+@media (max-aspect-ratio: 4/3){
+  .stage{width:98vw;height:97vh}
+  .sheet{padding:clamp(10px,1.8vh,22px) clamp(18px,2.6vw,46px) clamp(9px,1.5vh,20px)}
+  .title{font-size:clamp(22px,3.2vw,44px)}
+  .slogan{font-size:clamp(15px,1.9vw,28px)}
+}
+
+/* ============================ 无障碍：减少动态效果 ============================ */
+@media (prefers-reduced-motion: reduce){
+  .paper{transition-duration:240ms}
+  .boot .slit{animation:none;opacity:0}
+  .live .axis .beam,.live .col-c,.live .p-now,.live .blob{animation:none}
+  .live .axis .beam{opacity:1;left:40%}
+  .fi{transition-duration:200ms}
+}
+</style>
+</head>
+<body>
+
+<div class="stage">
+  <div class="scroll">
+
+    <!-- 纸面（展卷时上下拉开；内部内容绝对定格） -->
+    <div class="paper">
+      <div class="blobs"><span class="blob b1"></span><span class="blob b2"></span></div>
+
+      <div class="sheet">
+        <!-- 顶部标题 -->
+        <header class="head">
+          <h1 class="title fi up"><span class="q">《</span>诗音解密<span class="q">》</span>项目全景里程碑</h1>
+          <div class="rule fi"></div>
+        </header>
+
+        <!-- 时间轴：中线流金 -->
+        <div class="axis fi">
+          <div class="ln"></div>
+          <div class="beam"></div>
+          <span class="nd"></span><span class="nd on"></span><span class="nd"></span>
+        </div>
+
+        <!-- 主体三段式 -->
+        <main class="tri">
+
+          <!-- 左区 · 阶段一 -->
+          <section class="col col-l" data-mk="壹">
+            <div class="c-head fi">
+              <span class="c-idx">阶段一</span>
+              <svg class="ico" viewBox="0 0 100 100" aria-hidden="true" style="color:var(--ink-soft)">
+                <g fill="currentColor">
+                  <rect x="43" y="2"  width="14" height="18" rx="3.5"/>
+                  <rect x="43" y="2"  width="14" height="18" rx="3.5" transform="rotate(45 50 50)"/>
+                  <rect x="43" y="2"  width="14" height="18" rx="3.5" transform="rotate(90 50 50)"/>
+                  <rect x="43" y="2"  width="14" height="18" rx="3.5" transform="rotate(135 50 50)"/>
+                  <rect x="43" y="2"  width="14" height="18" rx="3.5" transform="rotate(270 50 50)"/>
+                  <rect x="43" y="2"  width="14" height="18" rx="3.5" transform="rotate(315 50 50)"/>
+                </g>
+                <circle cx="50" cy="50" r="27" fill="none" stroke="currentColor" stroke-width="8"/>
+                <circle cx="50" cy="50" r="9"  fill="none" stroke="currentColor" stroke-width="5"/>
+                <path d="M43 71 L52 63 L45 57 L55 50" fill="none" stroke="var(--cinnabar)" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              <span class="c-name">造物与翻车</span>
+            </div>
+            <div class="c-sub fi">HARDWARE · BUG</div>
+
+            <div class="item fi">
+              <div class="lb">成 果</div>
+              <div class="tx">V1.0 <b>硬件组装</b>完成，引擎第一次会听诗。</div>
+            </div>
+
+            <div class="bug fi">
+              <span class="mk">⚠</span>发现 Bug（<span class="em">亡赖</span> 变 <span class="em">无赖</span>）
+            </div>
+          </section>
+
+          <!-- 中区 · 阶段二（C 位 / 暗金边框 / 两张拼图） -->
+          <section class="col col-c" data-mk="贰">
+            <div class="c-head fi">
+              <span class="c-idx">阶段二</span>
+              <svg class="ico" viewBox="0 0 100 100" aria-hidden="true" style="color:var(--gold)">
+                <circle cx="38" cy="62" r="15" fill="none" stroke="currentColor" stroke-width="7"/>
+                <path d="M50 62 h12 a13 13 0 0 0 -6 -24 l-6 -16 a7 7 0 0 0 -13 3 l4 16 a13 13 0 0 0 9 21 z"
+                      fill="none" stroke="currentColor" stroke-width="7" stroke-linejoin="round"/>
+                <circle cx="38" cy="62" r="5" fill="currentColor"/>
+              </svg>
+              <span class="c-name">引擎修复</span>
+            </div>
+            <div class="c-sub fi">ENGINE · DIAGNOSIS &amp; REPAIR</div>
+
+            <div class="puzzle fi">
+              <!-- 左拼图：本课 -->
+              <div class="piece p-now">
+                <span class="p-tag">第 2 课时 · 本课</span>
+                <div class="p-h">跑通语音交互流程</div>
+                <div class="item">
+                  <div class="lb">任 务</div>
+                  <div class="tx">跑通语音交互流程</div>
+                </div>
+                <div class="item">
+                  <div class="lb">行 动</div>
+                  <div class="tx">定位<b>「模型匹配」</b>黑盒</div>
+                </div>
+              </div>
+              <!-- 右拼图：下节 -->
+              <div class="piece p-next">
+                <span class="p-tag">第 3 课时 · 下节</span>
+                <div class="p-h">填补底层代码空缺</div>
+                <div class="item">
+                  <div class="lb">任 务</div>
+                  <div class="tx">填补底层代码空缺</div>
+                </div>
+                <div class="item">
+                  <div class="lb">行 动</div>
+                  <div class="tx">HMM 计算概率 + Viterbi 寻路</div>
+                </div>
+              </div>
+              <!-- 拼图咬合扣件 -->
+              <svg class="joint" viewBox="0 0 34 48" aria-hidden="true">
+                <path d="M12 3 v9 a7.5 7.5 0 1 0 0 15 v9" fill="none" stroke="var(--gold)" stroke-width="2.6" stroke-linecap="round"/>
+                <path d="M22 45 v-9 a7.5 7.5 0 1 1 0 -15 v-9" fill="none" stroke="var(--gold)" stroke-width="2.6" stroke-linecap="round" opacity=".72"/>
+              </svg>
+            </div>
+          </section>
+
+          <!-- 右区 · 阶段三 -->
+          <section class="col col-r" data-mk="叁">
+            <div class="c-head fi">
+              <span class="c-idx">阶段三</span>
+              <svg class="ico" viewBox="0 0 100 100" aria-hidden="true" style="color:var(--ink-soft)">
+                <path d="M50 8 L86 22 v28 c0 22 -15 34 -36 42 C29 84 14 72 14 50 V22 Z"
+                      fill="none" stroke="currentColor" stroke-width="7" stroke-linejoin="round"/>
+                <path d="M34 50 l12 13 l24 -26" fill="none" stroke="currentColor" stroke-width="7"
+                      stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              <span class="c-name">体验与责任</span>
+            </div>
+            <div class="c-sub fi">EXPERIENCE · ETHICS</div>
+
+            <div class="item fi">
+              <div class="lb">课 时</div>
+              <div class="tx"><b>第 4、5 课时</b></div>
+            </div>
+            <div class="item fi">
+              <div class="lb">任 务</div>
+              <div class="tx">无障碍测试<br>与<b>责任书</b></div>
+            </div>
+          </section>
+
+        </main>
+
+        <!-- 底部金句 -->
+        <footer class="foot">
+          <div class="fl fi"></div>
+          <div class="slogan fi">
+            从流程诊断到代码实现<span class="sp">·</span><span class="hi">技术可以盲猜，人必须核实。</span>
+          </div>
+        </footer>
+      </div><!-- /.sheet -->
+    </div><!-- /.paper -->
+
+    <!-- 上下画轴 -->
+    <div class="rod rod-t"></div>
+    <div class="rod rod-b"></div>
+
+    <!-- 金色光缝（展卷瞬间） -->
+    <div class="slit"></div>
+  </div>
+</div>
+
+<button class="snd" id="sndBtn" title="古钟音效：开 / 关">♪</button>
+<div class="hint">空格 / R 重播展卷</div>
+
+<script>
+(function () {
+  var stage  = document.querySelector('.stage');
+  var sndBtn = document.getElementById('sndBtn');
+
+  /* 画轴位置由 .opened 类驱动（见 CSS），JS 不直接改样式，保证可重播 */
+
+  /* ---------------- 音效：低频古钟 + 展卷纸声 ---------------- */
+  var ctx = null, muted = false;
+  function AC() {
+    if (!ctx) {
+      var C = window.AudioContext || window.webkitAudioContext;
+      if (!C) return null;
+      ctx = new C();
+    }
+    return ctx;
+  }
+  function unlock() { var c = AC(); if (c && c.state === 'suspended') c.resume(); }
+
+  function bell(vol) {                       /* 「嗡」——定格时的低频古钟 */
+    if (muted) return;
+    var c = AC(); if (!c) return;
+    if (c.state === 'suspended') { c.resume(); }
+    var t0 = c.currentTime, g = c.createGain();
+    g.gain.setValueAtTime(vol || 0.5, t0);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + 3.0);
+    g.connect(c.destination);
+    [[104, 1], [156, .46], [223, .30], [297, .15], [58, .55]].forEach(function (p) {
+      var o = c.createOscillator(), gn = c.createGain();
+      o.type = 'sine'; o.frequency.value = p[0];
+      gn.gain.setValueAtTime(p[1], t0);
+      gn.gain.exponentialRampToValueAtTime(0.0001, t0 + 2.8);
+      o.connect(gn); gn.connect(g);
+      o.start(t0); o.stop(t0 + 3.0);
+    });
+  }
+  function paperHiss() {                     /* 展卷时的纸张摩擦声 */
+    if (muted) return;
+    var c = AC(); if (!c) return;
+    if (c.state === 'suspended') { c.resume(); }
+    var t0 = c.currentTime, len = 1.0;
+    var buf = c.createBuffer(1, Math.floor(c.sampleRate * len), c.sampleRate);
+    var d = buf.getChannelData(0);
+    for (var i = 0; i < d.length; i++) {
+      var pr = i / d.length;
+      d[i] = (Math.random() * 2 - 1) * Math.pow(1 - pr, 1.6);
+    }
+    var src = c.createBufferSource(); src.buffer = buf;
+    var bp = c.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 2600; bp.Q.value = .7;
+    var gn = c.createGain(); gn.gain.setValueAtTime(0.0001, t0);
+    gn.gain.linearRampToValueAtTime(0.12, t0 + 0.12);
+    gn.gain.linearRampToValueAtTime(0.0001, t0 + len);
+    src.connect(bp); bp.connect(gn); gn.connect(c.destination);
+    src.start(t0);
+  }
+
+  /* ---------------- 展卷时序 ---------------- */
+  var T = [];
+  function later(fn, ms) { T.push(setTimeout(fn, ms)); }
+  function clearAll() { T.forEach(clearTimeout); T = []; }
+
+  function roll() {
+    clearAll();
+    stage.classList.remove('boot', 'opened', 'live');
+    void stage.offsetWidth;                       /* 强制回流，保证动画可重播 */
+
+    stage.classList.add('boot');                  /* 金色光缝出现并横向拉开 */
+    later(function () {
+      stage.classList.add('opened');              /* 纸面上下展开 + 画轴分离 + 内容依次淡入 */
+      paperHiss();
+    }, 380);
+    later(function () {
+      stage.classList.add('live');                /* 定格：启动四组循环光影 */
+      bell(0.52);                                 /* 「嗡」——低频古钟 */
+    }, 1500);
+  }
+
+  /* 浏览器自动播放策略：首次交互后解锁音频 */
+  ['pointerdown', 'keydown', 'touchstart'].forEach(function (e) {
+    window.addEventListener(e, function once() {
+      unlock();
+      window.removeEventListener(e, once);
+    }, { once: true });
+  });
+
+  sndBtn.addEventListener('click', function (e) {
+    e.stopPropagation();
+    muted = !muted;
+    sndBtn.classList.toggle('on', !muted);
+    sndBtn.textContent = muted ? '✕' : '♪';
+    if (!muted) { unlock(); bell(0.5); }
+  });
+
+  document.addEventListener('keydown', function (e) {
+    var k = e.key.toLowerCase();
+    if (k === ' ' || k === 'r' || k === 'enter') { e.preventDefault(); unlock(); roll(); }
+  });
+
+  /* 开场：自动展卷，无需任何点击 */
+  requestAnimationFrame(function () { requestAnimationFrame(roll); });
+})();
+</script>
+</body>
+</html>
